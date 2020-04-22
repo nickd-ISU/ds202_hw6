@@ -1,0 +1,138 @@
+---
+title: "Homework 6"
+author: Nick Matthews; nickmatthews713
+date: "4/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Top dogs
+
+In this homework, you will try to reproduce the fantastic infographic for [top dogs](https://informationisbeautiful.net/visualizations/best-in-show-whats-the-top-data-dog/), originally produced by David McCandless. The raw data can be found [here](https://docs.google.com/spreadsheets/d/1l_HfF5EaN-QgnLc2UYdCc7L2CVrk0p3VdGB1godOyhk/edit#gid=10). You can download this file by File -- Download As -- Microsoft Excel (.xlsx).
+
+1. Import the data and clean appropriately. To read in the data, you can use `readxl::read_xlsx('fileNameHere', sheet='sheetNameHere')`. Required data are in the sheets `Best in show` and `Best in show full sheet`. Take extra care on the column names and the first few rows of the data frame after read in.
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(naniar)
+# Loading Data
+bis <- readxl::read_xlsx('KIB - Best in Show (public).xlsx', sheet='Best in show',range ="A6:AX179")
+bis <- bis[-1,]
+# Cleaning Data: Get rid of columns I don't think are useful
+bis <- bis %>%
+  select(-starts_with(".")) %>%
+  select(-c("congenital ailments: summary / areas affected", "exclude?", "congenital ailments: detail",
+            "lowest (US$)","highest (US$)","food per week, average, £","min, £","max, £","food per week, $",
+            "total per lifetime, $","total, per year, £","toys, presents, treats, per year, £",
+            "pet sitters, per year, £","grooming, per year, £","vet fees per year, £","kennels per year, £",
+            "one offs, $","total  per year, $"))
+
+# Rename columns / replace "no data" and "-" with NA / convert types
+bis <- bis %>%
+  rename(breed="Dog breed",popularity="popularity ranking (1-173, 1 = most popular)",
+         intelligence="intelligence ranking",intelligence_category="intelligence category",
+         rep_to_learn="repetitions to understand new commands",
+         obey_command_percentage="obey first command (% of time)",life_expectancy="life expectancy (years)",
+         survey_sample_size="survey sample size",number_congenital_aliments="No.",
+         cuteness_rating="cuteness rating (adults)",lifetime_cost="total lifetime cost, $",
+         average_buy_price="average price (US $)",price_bracket="price bracket",
+         lifetime_food_cost="food per lifetime, $", grooming_required="grooming required",
+         size="size category") %>%
+  replace_with_na_all(condition = ~.x == "no data") %>%
+  replace_with_na_all(condition = ~.x == "-") %>%
+  type.convert()
+
+```
+
+2. Create a graphics similar to the  [top dogs](https://informationisbeautiful.net/visualizations/best-in-show-whats-the-top-data-dog/) figure. Your figure needs to display the following information with appropriate plotting elements:
+
+```{r warning=FALSE}
+# We need to do a bit more work in order to trim down the number of variables in order to replicate
+# the six simple data score variables (intelligence, costs, longevity, grooming, ailments, and appetite)
+bisSimple <- bis %>%
+  separate(rep_to_learn, into = c("learn_rep_low", "learn_rep_high"), sep = "-") %>%
+  mutate(avg_learn_rep = (as.numeric(learn_rep_low) + as.numeric(learn_rep_high))/2) %>%
+  select(-c("learn_rep_low","learn_rep_high")) %>%
+  select(breed, category, popularity, intelligence, lifetime_cost, lifetime_food_cost, life_expectancy,
+         avg_learn_rep, number_congenital_aliments, size)
+bisSimple$life_expectancy <- as.numeric(bisSimple$life_expectancy)
+```
+
+```{r message=FALSE}
+library(scales)
+# Select only the columns needed for my data score, popularity, size, and inteligence. Then
+# scale each of the numeric columns so that they may be combined for a score. I use the
+# "scales" package to scale the columns in between 0 and 1
+bisSimple$popularity <- rescale(bisSimple$popularity)
+bisSimple$intelligence <- rescale(bisSimple$intelligence)
+bisSimple$lifetime_cost <- rescale(bisSimple$lifetime_cost)
+bisSimple$lifetime_food_cost <- rescale(bisSimple$lifetime_food_cost)
+bisSimple$life_expectancy <- rescale(bisSimple$life_expectancy)
+bisSimple$number_congenital_aliments <- rescale(bisSimple$number_congenital_aliments)
+```
+
+```{r}
+# Here I create the data_score by taking an average of all the data_score scaled columns
+bisSimple <- bisSimple %>%
+  rowwise() %>%
+  mutate(data_score = sum(intelligence,lifetime_cost,lifetime_food_cost,
+                          number_congenital_aliments, na.rm = TRUE)/4) %>%
+  filter(data_score > 0) %>%
+  mutate(data_score = data_score*-1) %>%
+  mutate(popularity = popularity*-1) %>%
+  mutate(intelligent = ifelse(avg_learn_rep > 21,"bold","italic"), na.rm=TRUE)
+
+bisSimple$size <- as.numeric(bisSimple$size)
+
+bisSimple$size[bisSimple$size == 1] <- 1.75
+bisSimple$size[bisSimple$size == 2] <- 2.5
+bisSimple$size[bisSimple$size == 3] <- 3
+```
+
+```{r}
+annotations <- data.frame(
+        xpos = c(-Inf,-Inf,Inf,Inf),
+        ypos =  c(-Inf, Inf,-Inf,Inf),
+        annotateText = c("Rightly Ignored","Overrated"
+                        ,"Overlooked","Hot Dogs"),
+        hjustvar = c(-0.1,-0.1,1.1,1.1),
+        vjustvar = c(-1,2,-1,2))
+
+x_axis_label <- tibble(x=-0.4,y=-1,text="Popularity")
+y_axis_label <- tibble(x=-0.65,y=-0.55,text="Data Score")
+
+bisSimple %>%
+  ggplot(aes(x=data_score,y=popularity, label=breed)) +
+  geom_hline(yintercept = -0.5, alpha=0.3) +
+  geom_vline(xintercept = -0.35, alpha=0.3) +
+  geom_text(aes(color=category),size=bisSimple$size,hjust=0,vjust=0,check_overlap = TRUE) +
+  scale_size(range = c(1.75,3)) +
+  geom_text(data=annotations,aes(x=xpos,y=ypos,hjust=hjustvar,vjust=vjustvar,label=annotateText),alpha=0.6) +
+  geom_text(data=x_axis_label,aes(x=x,y=y,label=text),alpha=0.7) +
+  geom_text(data=y_axis_label,aes(x=x,y=y,label=text),alpha=0.7) +
+  ggtitle("Best In Show: Dog Data") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(size = 30,face = "bold"))
+```
+
+## Description:  
+This is my final result. After many many attempts I could not get to displaying the intelligence of the dog or
+making a legend for the size of the dog. However, I was able to show...
+1) The Breed through geom_text()
+2) The type(category) through a color scheme, which contrasts pretty well
+3) The 3 sizes of the dog (large, medium, and small) but without a legend :(
+4) The popularity and data score by scaling variables
