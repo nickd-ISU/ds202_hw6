@@ -86,16 +86,16 @@ bisSimple <- bisSimple %>%
   filter(data_score > 0) %>%
   mutate(data_score = data_score*-1) %>%
   mutate(popularity = popularity*-1) %>%
-  mutate(intelligent = ifelse(avg_learn_rep > 21,"bold","italic"), na.rm=TRUE)
+  mutate(intelligent = ifelse(avg_learn_rep > 21,"Smart","Dumb"), na.rm=TRUE)
 
 bisSimple$size <- as.numeric(bisSimple$size)
 
 bisSimple$size[bisSimple$size == 1] <- 1.75
 bisSimple$size[bisSimple$size == 2] <- 2.5
-bisSimple$size[bisSimple$size == 3] <- 3
+bisSimple$size[bisSimple$size == 3] <- 3.5
 ```
 
-```{r}
+```{r fig.height=10, fig.width=8}
 annotations <- data.frame(
         xpos = c(-Inf,-Inf,Inf,Inf),
         ypos =  c(-Inf, Inf,-Inf,Inf),
@@ -111,7 +111,9 @@ bisSimple %>%
   ggplot(aes(x=data_score,y=popularity, label=breed)) +
   geom_hline(yintercept = -0.5, alpha=0.3) +
   geom_vline(xintercept = -0.35, alpha=0.3) +
-  geom_text(aes(color=category),size=bisSimple$size,hjust=0,vjust=0,check_overlap = TRUE) +
+  geom_label(aes(color=category),label.padding = unit(0.1,"lines"),hjust=0,vjust=0,
+             size=bisSimple$size,check_overlap = TRUE) +
+  geom_point(aes(shape=intelligent),size=2) +
   scale_size(range = c(1.75,3)) +
   geom_text(data=annotations,aes(x=xpos,y=ypos,hjust=hjustvar,vjust=vjustvar,label=annotateText),alpha=0.6) +
   geom_text(data=x_axis_label,aes(x=x,y=y,label=text),alpha=0.7) +
@@ -126,13 +128,19 @@ bisSimple %>%
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         legend.position = "top",
+        legend.background = element_rect(fill="lightblue"),
+        panel.background = element_rect(color = "brown", size = 1,linetype = "dashed"),
         plot.title = element_text(size = 30,face = "bold"))
 ```
 
 ## Description:  
-This is my final result. After many many attempts I could not get to displaying the intelligence of the dog or
-making a legend for the size of the dog. However, I was able to show...
-1) The Breed through geom_text()
-2) The type(category) through a color scheme, which contrasts pretty well
-3) The 3 sizes of the dog (large, medium, and small) but without a legend :(
-4) The popularity and data score by scaling variables
+This is my final result. After many many attempts I could not get to making a legend for the size of the dog. However, I was able to show it through the size of each geom_label(). Overall, here's what I was able to show...  
+1) The Breed through **geom_label()**  
+2) The type(category) through a color scheme, which contrasts pretty well  
+3) The 3 sizes of the dog (large, medium, and small) but without a legend :(  
+4) The popularity and data score by scaling variables  
+5) The intelligence through shape of geom_point  
+6) Get minimal overlap by using hjust and vjust, and also making the plot BIGGER!!  
+Getting the dogs to be positioned similar to that of the actual graph we had to replicate was hard.
+obviously he used a very specific scale to decide the data_score(much different from mine). But I guess
+that is somewhat subjective.
